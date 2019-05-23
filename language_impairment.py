@@ -45,7 +45,8 @@ pca,X_train,X_test = select_features(X_train,
         method = 'pca',
         **pca_params)
 
-good_pcs = [2, 20, 39, 11]
+#good_pcs = [2, 20, 39, 11]
+good_pcs = np.arange(0, 40)
 X_train = X_train[:,good_pcs]
 X_test = X_test[:,good_pcs]
 
@@ -70,4 +71,12 @@ print_stats(conf_matr)
 plot_auc(y_test, y_proba[:,1], 'Connectome Language', False, 'connectome_language.png')
 
 # plot feature importance
+feature_names = ['PC-{}'.format(i + 1) for i in good_pcs]
+plot_feature_importance(model, "Feature importance for connectome", feature_names, 10,
+        False, 'feature_importance_connectome_language.png')
 
+# randomization testing
+perf_distribution = \
+        cm.randomization_test(X_train, y_train, X_test, y_test, 1000, **xgb_params)
+
+print(perf_distribution.describe())

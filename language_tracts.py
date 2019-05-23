@@ -58,3 +58,9 @@ plot_auc(y_test, y_proba[:,1], 'Tracts Language', False, 'tracts_language.png')
 # plot feature importance
 plot_feature_importance(model, "Feature importance for tracts", cm.feature_names, 0,
         False, 'feature_importance_tract_language.png')
+
+# randomization testing
+perf_distribution = \
+        cm.randomization_test(X_train, y_train, X_test, y_test, 1000, **xgb_params)
+
+print(perf_distribution.describe())

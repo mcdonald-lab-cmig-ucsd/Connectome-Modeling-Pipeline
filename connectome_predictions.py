@@ -5,11 +5,15 @@
 from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import roc_curve
 from sklearn.metrics import accuracy_score
+
 import pickle
 import pandas as pd
 import numpy as np
 from os import path
 import sys
+from xgboost import XGBClassifier
+
+from utils import *
 
 class ConnectomeModel:
 
@@ -136,9 +140,62 @@ class ConnectomeModel:
         max_ind = np.argmax(accs)
         return thresholds[max_ind]
 
-    def get_tract_names():
-        tract_df = pd.read_csv(path.join(NEUROPSYCH_DIR, 'WM_tracts.csv'), index_col = 0)
-        return tract_df.filter(regex = '_fiber_FA*').columns.values
+    def randomization_test(self, x_train, y_train, x_test, y_test, n_iter = 1000, **kwargs):
+
+        print('Doing bootstrapping with {} samples'.format(n_iter))
+
+        train_ind = np.arange(len(x_train))
+        test_ind = np.arange(len(x_test))
+
+        subjs = np.array(self.subjects)
+        bad_subjs = []
+
+        measures_dict = {
+            'Accuracy': [],
+            'PPV': [],
+            'NPV': [],
+            'Sensitivity': [],
+            'Specificity': []
+        }
+
+        for i in range(n_iter):
+            np.random.shuffle(train_ind)
+
+            train_data_ind = train_ind[2:]
+
+            x_train_sub = x_train[train_data_ind]
+            y_train_sub = y_train[train_data_ind]
+
+            xgb = XGBClassifier(**kwargs,
+                                random_state=np.random.randint(0,10000))
+
+            xgb.fit(x_train_sub, y_train_sub)
+            y_pred = xgb.predict(x_test)
+            y_proba = xgb.predict_proba(x_test)
+
+            fpr, tpr, thresholds = roc_curve(y_test, y_proba[:, 1])
+
+            best_thr = self.find_best_threshold(y_test, y_proba[:,1])
+
+            y_pred_new = y_proba[:,1] > best_thr
+
+            acc,ppv,npv,sensitivity,specificity = print_stats(
+                confusion_matrix(y_test, y_pred_new), False)
+
+            measures_dict['Accuracy'].append(acc)
+            measures_dict['PPV'].append(ppv)
+            measures_dict['NPV'].append(npv)
+            measures_dict['Sensitivity'].append(sensitivity)
+            measures_dict['Specificity'].append(specificity)
+
+            if (i+1) % 100 is 0:
+                print('Done with {} iterations...'.format(i + 1))
+
+        #unique, counts = np.unique(np.array(bad_subjs).flatten(), return_counts=True)
+
+        #print(dict(zip(unique, counts)))
+
+        return pd.DataFrame(measures_dict)
 
     ###############################################
     #########   PRIVATE FUNCTIONS   ###############
