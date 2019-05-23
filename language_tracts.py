@@ -4,11 +4,13 @@ from connectome_predictions import ConnectomeModel
 from utils import *
 from sklearn.metrics import roc_curve
 from xgboost import *
+import numpy as np
 
 cm = ConnectomeModel('../connectomes/', '../data_np/')
 labels,subjectlist = cm.read_impair('final_final_cog_conn.csv', 'LangImp')
 
-data = cm.read_data('connectome')
+data = cm.read_data('tract', tract_file = 'language_tracts.csv',
+        tract_regex = '_FA')
 cm.split_data() # default ucsd/ucsf split
 
 X_train = data[cm.train]
@@ -22,32 +24,16 @@ print(X_train.shape)
 print(X_test.shape)
 
 
-## DEFINE parameters for pca and xgboost ##
-
-pca_params = {
-        'n_components': 40,
-        'random_state': 2
-}
-
+## DEFINE parameters for xgboost ##
 xgb_params = {
     'verbosity': 3,
-    'max_depth': 10,
-    'n_estimators': 1000,
-    'scale_pos_weight': 1.4,
-    'min_child_weight': 6.5
+    'n_estimators': 200,
+    'scale_pos_weight': 1.1,
+    'min_child_weight': 2,
+    'colsample_bytree': 0.3
 }
 
 ##
-
-# feature selection here (pca in this case)
-pca,X_train,X_test = select_features(X_train,
-        X_test,
-        method = 'pca',
-        **pca_params)
-
-good_pcs = [2, 20, 39, 11]
-X_train = X_train[:,good_pcs]
-X_test = X_test[:,good_pcs]
 
 # create model
 model = XGBClassifier(**xgb_params)
@@ -60,14 +46,15 @@ y_proba = model.predict_proba(X_test)
 best_thr = cm.find_best_threshold(y_test, y_proba[:,1])
 y_pred = y_proba[:,1] > best_thr
 
-# print out a confusion table and stats
+#print out a confusion table and stats
 conf_matr = confusion_matrix(y_true = y_test, y_pred = y_pred)
 
 print(conf_matr)
 print_stats(conf_matr)
 
 # plot the roc curve
-plot_auc(y_test, y_proba[:,1], 'Connectome Language', False, 'connectome_language.png')
+plot_auc(y_test, y_proba[:,1], 'Tracts Language', False, 'tracts_language.png')
 
 # plot feature importance
-
+plot_feature_importance(model, "Feature importance for tracts", cm.feature_names, 0,
+        False, 'feature_importance_tract_language.png')

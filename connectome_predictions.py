@@ -3,6 +3,8 @@
 # Description: Connectome modeling class
 
 from sklearn.model_selection import StratifiedKFold
+from sklearn.metrics import roc_curve
+from sklearn.metrics import accuracy_score
 import pickle
 import pandas as pd
 import numpy as np
@@ -67,7 +69,7 @@ class ConnectomeModel:
         return (labels, common_subjs)
 
     def read_data(self, measure, temp_subnet = True,
-            temporal_connections_file = '../temporal_connections_only.pickle',
+            temporal_connections_file = '../scripts/temporal_connections_only.pickle',
             tract_file = 'WM_tracts.csv', tract_regex = 'fiber_FA*',
             hcv_file = 'Hipp_Vol.csv', icv_colname = 'ICV',
             lhcv_name = 'Left Hippocampus', rhcv_name = 'Right Hippocampus'):
@@ -121,11 +123,28 @@ class ConnectomeModel:
             return self._create_k_split(num_folds, shuffle = True)
         return self._split_ucsd_ucsf()
 
+    def find_best_threshold(self, y_true, y_prob):
+        # calculate thresholds
+        fpr, tpr, thresholds = roc_curve(y_true, y_prob)
+
+        #maximize accuracy
+        accs = []
+        for thr in thresholds:
+            y_thr = y_prob > thr
+            accs.append(accuracy_score(y_pred = y_thr, y_true = y_true))
+
+        max_ind = np.argmax(accs)
+        return thresholds[max_ind]
+
+    def get_tract_names():
+        tract_df = pd.read_csv(path.join(NEUROPSYCH_DIR, 'WM_tracts.csv'), index_col = 0)
+        return tract_df.filter(regex = '_fiber_FA*').columns.values
+
     ###############################################
     #########   PRIVATE FUNCTIONS   ###############
     ###############################################
 
-    def _read_connectomes(self, temporal_connections_file, temp_subnet = True):
+    def _read_connectomes(self, temporal_connections_file = None, temp_subnet = True):
         # read in all connectomes
         connectomes = []
         reshaped = []
@@ -151,17 +170,22 @@ class ConnectomeModel:
         return reshaped
 
     def _read_tract_data(self, tract_file, regex):
-        tract_df = pd.read_csv(path.join(NEUROPSYCH_DIR, tract_file), index_col = 0)
+        tract_df = pd.read_csv(path.join(self.neuropsych_dir, tract_file), index_col = 0)
         tract_df = tract_df.loc[self.subjects]
+
+        self.feature_names = tract_df.columns.values
 
         return tract_df.filter(regex = regex).values
 
     def _read_hcv_data(self, hcv_file, icv_colname, lhcv_name, rhcv_name):
-        hcv_df = pd.read_csv(path.join(NEUROPSYCH_DIR, hcv_file),
+        hcv_df = pd.read_csv(path.join(self.neuropsych_dir, hcv_file),
                 index_col = 0)
         hcv_df = hcv_df.loc[self.subjects]
         hcv_df['Norm_Hipp.L'] = hcv_df[lhcv_name] / hcv_df[icv_colname]
         hcv_df['Norm_Hipp.R'] = hcv_df[rhcv_name] / hcv_df[icv_colname]
+
+        self.feature_names = np.array(['Left Hippocampus', 'Right Hippocampus'])
+
         return hcv_df.filter(regex = 'Norm_Hipp').values
 
     def _upper_tri_masking(self, A):
