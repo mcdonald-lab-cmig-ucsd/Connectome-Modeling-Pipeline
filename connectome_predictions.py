@@ -155,7 +155,8 @@ class ConnectomeModel:
             'PPV': [],
             'NPV': [],
             'Sensitivity': [],
-            'Specificity': []
+            'Specificity': [],
+            'AUC': []
         }
 
         for i in range(n_iter):
@@ -182,11 +183,14 @@ class ConnectomeModel:
             acc,ppv,npv,sensitivity,specificity = print_stats(
                 confusion_matrix(y_test, y_pred_new), False)
 
+            auc_roc = roc_auc_score(y_test, y_proba[:,1])
+
             measures_dict['Accuracy'].append(acc)
             measures_dict['PPV'].append(ppv)
             measures_dict['NPV'].append(npv)
             measures_dict['Sensitivity'].append(sensitivity)
             measures_dict['Specificity'].append(specificity)
+            measures_dict['AUC'].append(auc_roc)
 
             if (i+1) % 100 is 0:
                 print('Done with {} iterations...'.format(i + 1))
